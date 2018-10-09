@@ -1,7 +1,44 @@
 <?php
 
+ini_set('memory_limit', '256M');
+//ini_set('display_errors', 1);
+//ini_set('display_startup_errors', 1);
+//error_reporting(E_ALL);
+
+function debug_out($label, $message, $disable=false) {
+    if (!$disable) {
+        echo $label . ': "' . $message . '"</br>';
+    }
+}
+
+function resize_image($file, $w, $h) {
+    list($width, $height) = getimagesize($file);
+    $r = $width / $height;
+    if ($w / $h > $r) {
+        $newwidth = $h * $r;
+        $newheight = $h;
+    } else {
+        $newheight = $w / $r;
+        $newwidth = $w;
+    }
+    $src = imagecreatefromjpeg($file);
+    $dst = imagecreatetruecolor($newwidth, $newheight);
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, $newwidth, $newheight, $width, $height);
+    unset($src);
+
+    return $dst;
+}
+
+function saveCurrentImageForDisplay($path) {
+    $image = resize_image($path, 1200, 800);
+    $save_path = path_prefix('save');
+    imagejpeg($image, $save_path);
+    imagedestroy($image);
+    unset($image);
+}
+
 function arrayDirectories() {
-    return removeArrayItemsByValue(scandir(path_prefix('scan')), array('.', '..', '.htaccess'));
+    return removeArrayItemsByValue(scandir(path_prefix('scan')), array('.', '..', '.htaccess', 'current_image'));
 }
 
 function removeArrayItemsByValue($array, $values) {
@@ -13,7 +50,9 @@ function removeArrayItemsByValue($array, $values) {
 }
 
 function arrayFilenames($dir) {
-    return removeArrayItemsByValue(scandir(path_prefix('scan') . '/' . $dir), array('.', '..'));
+    $filenames = removeArrayItemsByValue(scandir(path_prefix('scan') . '/' . $dir), array('.', '..'));
+    $jpgs = preg_grep("/.*(jpg|JPG)$/", $filenames);
+    return $jpgs;
 }
 
 function currentFilename($dir) {
@@ -56,14 +95,18 @@ function path_prefix($target) {
             return 'images';
         } elseif ($target == 'action') {
             return 'http://localhost:8888/projects/php/pic_flip';
+        } elseif ($target == 'save') {
+            return 'images/current_image/current_image.jpg';
         }
     } else {
         if ($target == 'images') {
-            return 'http://www.f3mmedia.com/imad';
+            return '../imad';
         } elseif ($target == 'scan') {
             return '../imad';
         } elseif ($target == 'action') {
             return 'http://www.f3mmedia.com/pic_flip';
+        } elseif ($target == 'save') {
+            return '../imad/current_image/current_image.jpg';
         }
     }
 }
@@ -76,7 +119,8 @@ function dirSelectHtml() {
     $action_prefix = path_prefix('action');
     return <<<HTML
     <html>
-        <head></head>
+        <head>
+        </head>
         <body>
             <form action="$action_prefix/pic_flip.php" method="post">
                 <select name="dir">
@@ -97,6 +141,7 @@ function picFlipBrowserHtml() {
     $previousFilename = previousFilename($currentFilename, $currentDir);
     $images_prefix = path_prefix('images');
     $action_prefix = path_prefix('action');
+    saveCurrentImageForDisplay($images_prefix . '/' . $currentDir . '/' . $currentFilename);
     $html = <<<HTML
         <html>
             <head>
@@ -112,7 +157,7 @@ function picFlipBrowserHtml() {
                     <input type="submit" name="previousImageButton" value="PREVIOUS"/>
                     <input type="submit" name="nextImageButton" value="NEXT"/>
                 </form>
-                <img src="$images_prefix/$currentDir/$currentFilename" width="200" />
+                <img src="$images_prefix/current_image/current_image.jpg" />
             </body>
         </html>
 HTML;
